@@ -497,7 +497,7 @@ class SpectrumSynthesis(SpectrumQuantization):
 
         if self.lsb_mode == 0:
 
-            xr = np.zeros(len(x), dtype=np.bool)
+            xr = np.zeros(len(x), dtype=np.bool_)
 
             for i in range(len(x)):
 

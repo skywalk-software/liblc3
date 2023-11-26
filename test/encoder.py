@@ -20,6 +20,7 @@ import scipy.signal as signal
 import scipy.io.wavfile as wavfile
 import struct
 import argparse
+import os
 
 import lc3
 import tables as T, appendix_c as C
@@ -156,57 +157,65 @@ if __name__ == "__main__":
     if args.dt not in (7.5, 10):
         raise ValueError('Invalid frame duration %.1f ms' % args.dt)
 
-    (sr_hz, pcm) = wavfile.read(args.wav_file.name)
-    if sr_hz not in (8000, 16000, 24000, 320000, 48000):
-        raise ValueError('Unsupported input samplerate: %d' % sr_hz)
-    if pcm.ndim != 1:
-        raise ValueError('Only single channel wav file supported')
+    (sr_hz, masterpcm) = wavfile.read(args.wav_file.name)
+    if masterpcm.shape[1] > 1:
+        print("Found " + str(masterpcm.shape[1]) + " channels")
+        for i in range(masterpcm.shape[1]):
+            pcm = masterpcm[:, i]
+            if sr_hz not in (8000, 16000, 24000, 320000, 48000):
+                raise ValueError('Unsupported input samplerate: %d' % sr_hz)
+            if pcm.ndim != 1:
+                raise ValueError('Only single channel wav file supported')
 
-    ### Setup ###
+            ### Setup ###
 
-    enc = Encoder(args.dt, sr_hz)
-    enc_c = lc3.setup_encoder(int(args.dt * 1000), sr_hz)
+            enc = Encoder(args.dt, sr_hz)
+            enc_c = lc3.setup_encoder(int(args.dt * 1000), sr_hz)
 
-    frame_samples = int((args.dt * sr_hz) / 1000)
-    frame_nbytes = int((args.bitrate * args.dt) / (1000 * 8))
+            frame_samples = int((args.dt * sr_hz) / 1000)
+            frame_nbytes = int((args.bitrate * args.dt) / (1000 * 8))
 
-    ### File Header ###
+            ### File Header ###
+            base_name, ext = os.path.splitext(args.pyout.name)
+            f_py = open(f"{base_name}_ch{i}{ext}", 'wb') if args.pyout else None
+            f_c  = open(args.cout.name , 'wb') if args.cout  else None
 
-    f_py = open(args.pyout.name, 'wb') if args.pyout else None
-    f_c  = open(args.cout.name , 'wb') if args.cout  else None
 
-    header = struct.pack('=HHHHHHHI', 0xcc1c, 18,
-        sr_hz // 100, args.bitrate // 100, 1, int(args.dt * 100), 0, len(pcm))
+            header = struct.pack('=HHHHHHHI', 0xcc1c, 18,
+                sr_hz // 100, args.bitrate // 100, 1, int(args.dt * 100), 0, len(pcm))
 
-    for f in (f_py, f_c):
-        if f: f.write(header)
+            for f in (f_py, f_c):
+                if f: f.write(header)
 
-    ### Encoding loop ###
+            ### Encoding loop ###
 
-    if len(pcm) % frame_samples > 0:
-        pcm = np.append(pcm, np.zeros(frame_samples - (len(pcm) % frame_samples)))
+            if len(pcm) % frame_samples > 0:
+                pcm = np.append(pcm, np.zeros(frame_samples - (len(pcm) % frame_samples)))
 
-    for i in range(0, len(pcm), frame_samples):
+            for i in range(0, len(pcm), frame_samples):
 
-        print('Encoding frame %d' % (i // frame_samples), end='\r')
+                print('Encoding frame %d' % (i // frame_samples), end='\r')
 
-        frame_pcm = pcm[i:i+frame_samples]
+                frame_pcm = pcm[i:i+frame_samples]
 
-        data = enc.run(frame_pcm, frame_nbytes)
-        data_c = lc3.encode(enc_c, frame_pcm, frame_nbytes)
+                data = enc.run(frame_pcm, frame_nbytes)
+                data_c = lc3.encode(enc_c, frame_pcm, frame_nbytes)
 
-        for f in (f_py, f_c):
-            if f: f.write(struct.pack('=H', frame_nbytes))
+                for f in (f_py, f_c):
+                    if f: f.write(struct.pack('=H', frame_nbytes))
 
-        if f_py: f_py.write(data)
-        if f_c: f_c.write(data_c)
+                if f_py: f_py.write(data)
+                if f_c: f_c.write(data_c)
 
-    print('done ! %16s' % '')
+            print('done ! %16s' % '')
 
-    ### Terminate ###
+            ### Terminate ###
 
-    for f in (f_py, f_c):
-        if f: f.close()
+            for f in (f_py, f_c):
+                if f: f.close()
+
+    else:
+        pass
 
 
 ### ------------------------------------------------------------------------ ###
