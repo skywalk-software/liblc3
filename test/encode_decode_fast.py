@@ -7,7 +7,7 @@ import os
 from multiprocessing import Process, Pool
 import lc3
 import tables as T, appendix_c as C
-
+import glob
 import encoder
 import decoder
 
@@ -66,15 +66,17 @@ def encode_decode_audio(dt, bitrate, name, sr_hz, masterpcm):
     print('done ! %16s' % '')
 
     base_name, ext = os.path.splitext(name)
+    # Remove _original from name
+    base_name = base_name[:-9] if base_name[-9:] == '_original' else base_name
     ext = '.wav'
-    wavfile.write(f"{base_name}_combined{ext}", sr_hz, pcm_py_array)
+    wavfile.write(f"{base_name}_lc3_{bitrate}{ext}", sr_hz, pcm_py_array)
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='LC3 Encoder Test Framework')
-    parser.add_argument('wav_file',
-        help='Input wave file', type=argparse.FileType('r'))
+    parser.add_argument('directory',
+        help='Directory containing wave files', type=str)
     parser.add_argument('--bitrate',
         help='Bitrate in bps', type=int, required=True)
     parser.add_argument('--dt',
@@ -87,7 +89,10 @@ if __name__ == "__main__":
     if args.dt not in (7.5, 10):
         raise ValueError('Invalid frame duration %.1f ms' % args.dt)
 
-    (sr_hz, masterpcm) = wavfile.read(args.wav_file.name)
-    encode_decode_audio(args.dt, args.bitrate, args.wav_file.name, sr_hz, masterpcm)
+    wav_files = glob.glob(f"{args.directory}/*_original.wav")
+
+    for wav_file in wav_files:
+        (sr_hz, masterpcm) = wavfile.read(wav_file)
+        encode_decode_audio(args.dt, args.bitrate, wav_file, sr_hz, masterpcm)
         
 ### ------------------------------------------------------------------------ ###
