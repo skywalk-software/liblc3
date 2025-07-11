@@ -5,6 +5,9 @@ import struct
 import argparse
 import os
 from multiprocessing import Process
+
+## If having import issues with LC3, try running the following command in the terminal from test directory
+# /path/to/python setup.py install
 import lc3
 import tables as T, appendix_c as C
 import soundfile as sf
@@ -74,6 +77,10 @@ def encode_decode_audio(dt, bitrate, name, sr_hz, masterpcm, save_encoded=False)
             # pcm_c[ch] = np.append(pcm_c[ch], x_c)
             pcm_c[ch] = np.concatenate((pcm_c[ch], x_c))
 
+        # Save each channel as a separate .wav file
+        channel_wav_name = f"{base_name}_lc3_{bitrate}_ch{ch}.wav"
+        sf.write(channel_wav_name, pcm_py[ch], sr_hz)
+
     pcm_py_array = np.stack(pcm_py, axis=-1).astype(np.int16)
     pcm_c_array = np.stack(pcm_c, axis=-1).astype(np.int16)
     print('done ! %16s' % '')
@@ -97,6 +104,10 @@ if __name__ == "__main__":
         help='Frame duration in ms', type=float, default=10)
     parser.add_argument('--save_encoded', action='store_true')
     args = parser.parse_args()
+
+    # example parameters
+    # args = argparse.Namespace(wav_file=open('test/16k.wav', 'r'), bitrate=32000, dt=10, save_encoded=False)
+
 
     if args.bitrate < 16000 or args.bitrate > 320000:
         raise ValueError('Invalid bitate %d bps' % args.bitrate)
